@@ -1,9 +1,13 @@
 import argparse
+import csv
 import getpass
+import os
 import random
 import subprocess
-
 from decrypt_aegis import decrypt_aegis_vault
+
+INPUT_LIST_FILE = "input_list.txt"
+MAX_ENTRIES = 50
 
 
 def fix_base32_padding(base32_str):
@@ -37,7 +41,45 @@ def main():
     failed_entries = []
     added_entries = []
 
-    for entry in db.get("entries", []):
+    entries = db.get("entries", [])
+
+    while True:
+        if os.path.exists(INPUT_LIST_FILE):
+            with open(INPUT_LIST_FILE, "r", encoding="utf-8") as f:
+                csv_reader = csv.reader(f)
+                # Get indexes of entries to include
+                indexes = []
+                for row in csv_reader:
+                    if row[0].isdigit():
+                        indexes.append(int(row[0]))
+                entries = [entries[i] for i in indexes]
+                print(f"Selected {len(entries)} entries from {INPUT_LIST_FILE}.")
+
+        if len(entries) > MAX_ENTRIES:
+            print(
+                f"WARNING: More than {MAX_ENTRIES} entries found. Please choose which ones to include."
+            )
+            with open(INPUT_LIST_FILE, "w", encoding="utf-8") as f:
+                csv_writer = csv.writer(f)
+                csv_writer.writerow(["Index", "Issuer", "Name"])
+                for i, entry in enumerate(entries):
+                    name = entry.get("name")
+                    issuer = entry.get("issuer")
+                    csv_writer.writerow([i, issuer, name])
+
+            print(f"Entries written to {INPUT_LIST_FILE}.")
+            print(
+                f"Please edit the file to include only rows with desired entries. (max {MAX_ENTRIES})"
+            )
+            input("Press Enter to continue after editing the file...")
+        else:
+            break
+
+    print(f"Removing temporary file {INPUT_LIST_FILE}...")
+    if os.path.exists(INPUT_LIST_FILE):
+        os.remove(INPUT_LIST_FILE)
+
+    for entry in entries:
         name = entry.get("name")
         issuer = entry.get("issuer")
         totp_info = entry.get("info")
@@ -79,6 +121,9 @@ def main():
             print(f"  - {issuer}_{name}")
     if len(added_entries) > 0:
         print(f"Successfully added {len(added_entries)} entries to Nitrokey.")
+        print("Successfully added the following entries:")
+        for entry in added_entries:
+            print(f"  - {entry}")
 
 
 if __name__ == "__main__":
