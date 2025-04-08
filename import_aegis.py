@@ -6,6 +6,14 @@ import subprocess
 from decrypt_aegis import decrypt_aegis_vault
 
 
+def fix_base32_padding(base32_str):
+    # Check if padding is needed
+    if len(base32_str) % 8 != 0:
+        # Add necessary padding
+        base32_str = base32_str.rstrip("=") + "=" * ((8 - len(base32_str) % 8) % 8)
+    return base32_str
+
+
 def main():
     parser = argparse.ArgumentParser(description="Decrypt Aegis vault file")
     parser.add_argument("input_file", type=str, help="Path to the input file")
@@ -48,7 +56,7 @@ def main():
                     "secrets",
                     "add-otp",
                     entry_name,
-                    secret,
+                    fix_base32_padding(secret),  # nitropy requires correct padding
                     "--digits-str",
                     str(digits),
                     "--hash",
