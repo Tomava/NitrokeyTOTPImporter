@@ -1,0 +1,1 @@
+pynitrokey==0.8.1
