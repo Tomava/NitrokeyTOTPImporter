@@ -21,10 +21,10 @@ def fix_base32_padding(base32_str: str) -> str:
 def read_entries_from_file(file_path: str, old_entries: list) -> list:
     try:
         with open(file_path, "r", encoding="utf-8") as f:
-            csv_reader = csv.reader(f)
+            csv_reader = csv.DictReader(f, delimiter=",")
             # Get entries to include
             new_entries = []
-            for row in csv_reader[1:]:  # Skip header
+            for row in csv_reader:
                 # Search from old entries with issuer and name
                 for entry in old_entries:
                     if (
@@ -40,7 +40,7 @@ def read_entries_from_file(file_path: str, old_entries: list) -> list:
 
 def write_entries_to_file(file_path: str, entries: list) -> None:
     with open(file_path, "w", encoding="utf-8") as f:
-        csv_writer = csv.writer(f)
+        csv_writer = csv.writer(f, delimiter=",")
         csv_writer.writerow(["issuer", "name"])
         for entry in entries:
             issuer = entry.get("issuer")
@@ -52,6 +52,11 @@ def write_entries_to_file(file_path: str, entries: list) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Decrypt Aegis vault file")
     parser.add_argument("input_file", type=str, help="Path to the input file")
+    parser.add_argument(
+        "--reset",
+        action=argparse.BooleanOptionalAction,
+        help="Reset the nitrokey before adding entries. Use with caution!",
+    )
 
     args = parser.parse_args()
 
@@ -59,14 +64,31 @@ def main():
         print("ERROR: Input file required")
         return
 
+    if args.reset:
+        user_verification = input(
+            "NOTICE: This will RESET ALL THE CONTENT in the Nitrokey. Type 'yes' to continue: "
+        )
+        if user_verification.lower() != "yes":
+            print("Aborting...")
+            return
+        else:
+            print("Resetting Nitrokey...")
+            subprocess.run(["nitropy", "nk3", "secrets", "reset"], check=True)
+            print("Nitrokey reset complete.")
+            print()
+
     # ask the user for a password
-    password = getpass.getpass().encode("utf-8")
+    password = getpass.getpass("Aegis vault password: ").encode("utf-8")
 
     # decrypt the Aegis vault file
     try:
         db = decrypt_aegis_vault(args.input_file, password)
     except Exception as e:
         print(f"ERROR: {e}")
+        return
+
+    if db is None:
+        print("ERROR: Unable to decrypt the vault.")
         return
 
     failed_entries = []
