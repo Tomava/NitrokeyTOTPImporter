@@ -9,7 +9,6 @@
 # password: test
 
 import base64
-import getpass
 import io
 import json
 

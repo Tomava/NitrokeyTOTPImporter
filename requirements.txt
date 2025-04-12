@@ -1,2 +1,3 @@
 pynitrokey==0.8.1
 pyotp==2.9.0
+cryptography==44.0.2
