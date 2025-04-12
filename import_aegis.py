@@ -89,8 +89,11 @@ def get_existing_entries_amount() -> int:
             stdout=subprocess.PIPE,
         )
         output_lines = output.stdout.decode("utf-8").strip().split("\n")
-        print(f"Found {len(output_lines)} existing entries.")
-        return len(output_lines)
+        existing_amount = 0
+        if output_lines[0].strip() != "No credentials found":
+            existing_amount = len(output_lines)
+        print(f"Found {existing_amount} existing entries.")
+        return existing_amount
     except subprocess.CalledProcessError as e:
         print(f"ERROR: Failed to list existing entries: {e}")
         return 0
