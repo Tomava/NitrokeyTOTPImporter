@@ -6,16 +6,47 @@ import random
 import subprocess
 from decrypt_aegis import decrypt_aegis_vault
 
-INPUT_LIST_FILE = "input_list.txt"
+INPUT_LIST_FILE = "input_list.csv"
 MAX_ENTRIES = 50
 
 
-def fix_base32_padding(base32_str):
+def fix_base32_padding(base32_str: str) -> str:
     # Check if padding is needed
     if len(base32_str) % 8 != 0:
         # Add necessary padding
         base32_str = base32_str.rstrip("=") + "=" * ((8 - len(base32_str) % 8) % 8)
     return base32_str
+
+
+def read_entries_from_file(file_path: str, old_entries: list) -> list:
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            csv_reader = csv.reader(f)
+            # Get entries to include
+            new_entries = []
+            for row in csv_reader[1:]:  # Skip header
+                # Search from old entries with issuer and name
+                for entry in old_entries:
+                    if (
+                        entry.get("issuer") == row["issuer"]
+                        and entry.get("name") == row["name"]
+                    ):
+                        new_entries.append(entry)
+            print(f"Selected {len(new_entries)} entries from {file_path}.")
+    except FileNotFoundError:
+        print(f"ERROR: File {file_path} not found.")
+    return new_entries
+
+
+def write_entries_to_file(file_path: str, entries: list) -> None:
+    with open(file_path, "w", encoding="utf-8") as f:
+        csv_writer = csv.writer(f)
+        csv_writer.writerow(["issuer", "name"])
+        for entry in entries:
+            issuer = entry.get("issuer")
+            name = entry.get("name")
+            csv_writer.writerow([issuer, name])
+    print(f"Entries written to {file_path}.")
 
 
 def main():
@@ -45,29 +76,13 @@ def main():
 
     while True:
         if os.path.exists(INPUT_LIST_FILE):
-            with open(INPUT_LIST_FILE, "r", encoding="utf-8") as f:
-                csv_reader = csv.reader(f)
-                # Get indexes of entries to include
-                indexes = []
-                for row in csv_reader:
-                    if row[0].isdigit():
-                        indexes.append(int(row[0]))
-                entries = [entries[i] for i in indexes]
-                print(f"Selected {len(entries)} entries from {INPUT_LIST_FILE}.")
+            entries = read_entries_from_file(INPUT_LIST_FILE, entries)
 
         if len(entries) > MAX_ENTRIES:
             print(
                 f"WARNING: More than {MAX_ENTRIES} entries found. Please choose which ones to include."
             )
-            with open(INPUT_LIST_FILE, "w", encoding="utf-8") as f:
-                csv_writer = csv.writer(f)
-                csv_writer.writerow(["Index", "Issuer", "Name"])
-                for i, entry in enumerate(entries):
-                    name = entry.get("name")
-                    issuer = entry.get("issuer")
-                    csv_writer.writerow([i, issuer, name])
-
-            print(f"Entries written to {INPUT_LIST_FILE}.")
+            write_entries_to_file(INPUT_LIST_FILE, entries)
             print(
                 f"Please edit the file to include only rows with desired entries. (max {MAX_ENTRIES})"
             )
