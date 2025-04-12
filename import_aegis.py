@@ -162,9 +162,9 @@ def main():
             )
             write_entries_to_file(INPUT_LIST_FILE, entries)
             print(
-                f"Please edit the file to include only rows with desired entries. (max {max_amount}). DO NOT EDIT THE HEADER ROW!"
+                f"Please edit the file to include only rows with desired entries (max {max_amount}). DO NOT EDIT THE HEADER ROW!"
             )
-            input("Press Enter to continue after editing the file...")
+            input("Save the file and press Enter to continue after editing the file...")
         else:
             break
 
