@@ -1,1 +1,2 @@
 pynitrokey==0.8.1
+pyotp==2.9.0

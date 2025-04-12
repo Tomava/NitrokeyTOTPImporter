@@ -4,7 +4,9 @@ import getpass
 import os
 import random
 import subprocess
+import pyotp
 from decrypt_aegis import decrypt_aegis_vault
+
 
 INPUT_LIST_FILE = "input_list.csv"
 MAX_ENTRIES = 50
@@ -47,6 +49,35 @@ def write_entries_to_file(file_path: str, entries: list) -> None:
             name = entry.get("name")
             csv_writer.writerow([issuer, name])
     print(f"Entries written to {file_path}.")
+
+
+def verify_entries(entries: list) -> list:
+    failed_entries = []
+    for entry in entries:
+        try:
+            entry_name = entry.get("entry_name")
+            output = subprocess.run(
+                ["nitropy", "nk3", "secrets", "get-otp", entry_name],
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+            # Read output and get the last row and compare to generated OTP
+            output_lines = output.stdout.decode("utf-8").strip().split("\n")
+            if len(output_lines) > 0:
+                nitrokey_code = output_lines[-1].strip()
+                totp = pyotp.TOTP(entry.get("info").get("secret"))
+                if totp.verify(nitrokey_code):
+                    print(f"SUCCESS: OTP entry {entry_name} verified successfully.")
+                else:
+                    print(f"ERROR: OTP entry {entry_name} verification failed.")
+                    failed_entries.append(entry)
+            else:
+                print(f"ERROR: No output for OTP entry {entry_name}.")
+                failed_entries.append(entry)
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR: Failed to verify OTP entry {entry_name}: {e}")
+            failed_entries.append(entry)
+    return failed_entries
 
 
 def main():
@@ -128,6 +159,7 @@ def main():
             entry_name = f"{issuer}_{name}"
             if entry_name in added_entries:
                 entry_name = f"{issuer}_{name}_{hex(random.getrandbits(32))}"
+            entry["entry_name"] = entry_name
             subprocess.run(
                 [
                     "nitropy",
@@ -145,22 +177,35 @@ def main():
                 ],
                 check=True,
             )
-            added_entries.append(entry_name)
+            added_entries.append(entry)
         except Exception as e:
             print(f"ERROR: Failed to add OTP entry: {e}")
-            failed_entries.append((issuer, name))
+            failed_entries.append(entry)
             continue
         print(f"Added OTP entry: {issuer}_{name}")
 
+    print("Verifying added entries...")
+    failed_to_verify_entries = verify_entries(added_entries)
+
     if failed_entries:
         print("Failed to add the following entries:")
-        for issuer, name in failed_entries:
-            print(f"  - {issuer}_{name}")
+        for entry in failed_entries:
+            print(f"  - {entry.get("entry_name")}")
+    if failed_to_verify_entries:
+        print("Failed to verify the following entries:")
+        for entry in failed_to_verify_entries:
+            print(f"  - {entry.get("entry_name")}")
     if len(added_entries) > 0:
-        print(f"Successfully added {len(added_entries)} entries to Nitrokey.")
-        print("Successfully added the following entries:")
+        print(f"Added {len(added_entries)} entries to Nitrokey.")
+        print("Added the following entries:")
         for entry in added_entries:
-            print(f"  - {entry}")
+            verification_failed = entry in failed_to_verify_entries
+            output = (
+                f"  - {entry.get("entry_name")} (verification failed)"
+                if verification_failed
+                else f"  - {entry.get("entry_name")}"
+            )
+            print(output)
 
 
 if __name__ == "__main__":
