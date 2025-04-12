@@ -80,6 +80,22 @@ def verify_entries(entries: list) -> list:
     return failed_entries
 
 
+def get_existing_entries_amount() -> int:
+    print("Checking existing entries...")
+    try:
+        output = subprocess.run(
+            ["nitropy", "nk3", "secrets", "list"],
+            check=True,
+            stdout=subprocess.PIPE,
+        )
+        output_lines = output.stdout.decode("utf-8").strip().split("\n")
+        print(f"Found {len(output_lines)} existing entries.")
+        return len(output_lines)
+    except subprocess.CalledProcessError as e:
+        print(f"ERROR: Failed to list existing entries: {e}")
+        return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="Decrypt Aegis vault file")
     parser.add_argument("input_file", type=str, help="Path to the input file")
@@ -108,6 +124,12 @@ def main():
             print("Nitrokey reset complete.")
             print()
 
+    existing_amount = get_existing_entries_amount()
+    max_amount = MAX_ENTRIES - existing_amount
+    if max_amount <= 0:
+        print("ERROR: No space left for new entries.")
+        return
+
     # ask the user for a password
     password = getpass.getpass("Aegis vault password: ").encode("utf-8")
 
@@ -131,13 +153,13 @@ def main():
         if os.path.exists(INPUT_LIST_FILE):
             entries = read_entries_from_file(INPUT_LIST_FILE, entries)
 
-        if len(entries) > MAX_ENTRIES:
+        if len(entries) > max_amount:
             print(
-                f"WARNING: More than {MAX_ENTRIES} entries found. Please choose which ones to include."
+                f"WARNING: More than {max_amount} entries found. Please choose which ones to include."
             )
             write_entries_to_file(INPUT_LIST_FILE, entries)
             print(
-                f"Please edit the file to include only rows with desired entries. (max {MAX_ENTRIES})"
+                f"Please edit the file to include only rows with desired entries. (max {max_amount}). DO NOT EDIT THE HEADER ROW!"
             )
             input("Press Enter to continue after editing the file...")
         else:
